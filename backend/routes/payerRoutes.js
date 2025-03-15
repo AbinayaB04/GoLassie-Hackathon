@@ -1,11 +1,18 @@
 const express = require('express');
-const { getAllPayers, addPayer, mapPayerDetails } = require('../controllers/payerController');
+const { getAllPayers, addPayer, mapPayerDetails,uploadPayerDetails} = require('../controllers/payerController');
 const { validatePayer } = require('../middlewares/validate');
+const payerController = require('../controllers/payerController');
 
 const router = express.Router();
+router.get('/payers', getAllPayers);
 
-router.get('/', getAllPayers);
-router.post('/', validatePayer, addPayer);
-router.post('/map', mapPayerDetails);
+// Add a new payer
+router.post('/payers', addPayer);
+
+// Map payer details from JSON data
+router.post('/map-payer-details', mapPayerDetails);
+
+// Upload Excel file and map payer details
+router.post('/upload-payer-details', payerController.upload.single('file'), uploadPayerDetails);
 
 module.exports = router;
