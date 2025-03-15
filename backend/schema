@@ -1,0 +1,23 @@
+-- Create table: payer_groups
+CREATE TABLE payer_groups (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL
+);
+
+-- Create table: payers
+CREATE TABLE payers (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    payer_group_id INTEGER REFERENCES payer_groups(id),
+    payer_number VARCHAR(255),
+    pretty_name VARCHAR(255)
+);
+
+-- Create table: payer_details
+CREATE TABLE payer_details (
+    id SERIAL PRIMARY KEY,
+    payer_id INTEGER REFERENCES payers(id),
+    payer_name VARCHAR(255),
+    payer_number VARCHAR(255),
+    ein VARCHAR(255)
+);

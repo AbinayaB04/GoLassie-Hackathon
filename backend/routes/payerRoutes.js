@@ -12,7 +12,7 @@ const router = express.Router();
 router.get('/', getAllPayers);
 router.post('/', addPayer);
 router.post('/map-details', mapPayerDetails);
-router.post('/upload', upload.single('file'), uploadPayerDetails);
+router.post('/upload', upload.single(), uploadPayerDetails);
 const fetchUnmappedDetailsFromDatabase = async () => {
     const result = await pool.query('SELECT * FROM payer_details WHERE payer_id IS NULL');
     return result.rows;
