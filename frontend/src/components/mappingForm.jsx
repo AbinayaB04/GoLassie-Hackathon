@@ -4,6 +4,8 @@ import axios from 'axios';
 const MappingForm = () => {
     const [file, setFile] = useState(null);
     const [mappedData, setMappedData] = useState([]);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(null);
 
     const handleFileChange = (e) => {
         setFile(e.target.files[0]);
@@ -11,8 +13,16 @@ const MappingForm = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        if (!file) {
+            setError('Please select a file to upload.');
+            return;
+        }
+
         const formData = new FormData();
         formData.append('file', file);
+
+        setLoading(true);
+        setError(null); // Reset error state
 
         try {
             const response = await axios.post('http://localhost:5000/api/payers/map', formData, {
@@ -22,7 +32,9 @@ const MappingForm = () => {
             });
             setMappedData(response.data);
         } catch (error) {
-            console.error('Error mapping payers:', error);
+            setError('Error mapping payers: ' + error.response?.data?.message || error.message);
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -30,9 +42,13 @@ const MappingForm = () => {
         <div>
             <h2>Map Payer Details</h2>
             <form onSubmit={handleSubmit}>
-                <input type="file" onChange={handleFileChange} />
-                <button type="submit">Map Payers</button>
+                <input type="file" accept=".xlsx, .xls, .csv" onChange={handleFileChange} />
+                <button type="submit" disabled={loading}>
+                    {loading ? 'Mapping...' : 'Map Payers'}
+                </button>
             </form>
+
+            {error && <p style={{ color: 'red' }}>{error}</p>}
 
             <h3>Mapped Payers</h3>
             <ul>

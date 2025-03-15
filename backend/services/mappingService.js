@@ -10,7 +10,7 @@ const fuseOptions = {
 
 /**
  * Map payer details from incoming data
- * @param {Array} excelData - Array of objects containing payer details (name, payer_number, payer_group_id, ein)
+ * @param {Array} excelData - Array of objects containing payer details
  * @returns {Array} - Array of mapped payer details
  */
 async function mapPayerDetails(excelData) {
