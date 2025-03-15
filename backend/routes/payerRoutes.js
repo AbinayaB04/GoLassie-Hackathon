@@ -7,7 +7,7 @@ const router = express.Router();
 router.get('/payers', getAllPayers);
 
 // Add a new payer
-router.post('/payers', addPayer);
+router.post('/payer', addPayer);
 
 // Map payer details from JSON data
 router.post('/map-payer-details', mapPayerDetails);
