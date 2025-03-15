@@ -3,32 +3,36 @@ import axios from 'axios';
 
 const ManualMappingForm = () => {
     const [unmappedDetails, setUnmappedDetails] = useState([]);
-    const [selectedPayer, setSelectedPayer] = useState(null);
 
     useEffect(() => {
         const fetchUnmappedDetails = async () => {
-            const response = await axios.get('/api/payer-details/unmapped');
-            setUnmappedDetails(response.data);
+            try {
+                const response = await axios.get('http://localhost:5000/api/payers/unmapped'); // Adjust URL
+                console.log('Fetched Data:', response.data);
+                setUnmappedDetails(response.data || []); // Ensure it's always an array
+            } catch (error) {
+                console.error('Failed to fetch unmapped details:', error);
+                setUnmappedDetails([]); // Fallback to an empty array
+            }
         };
+
         fetchUnmappedDetails();
     }, []);
-
-    const handleMap = async (detailId) => {
-        if (!selectedPayer) return alert('Please select a payer');
-        await axios.post('/api/map-payer-detail', { detailId, payerId: selectedPayer });
-    };
 
     return (
         <div>
             <h1>Manual Mapping</h1>
-            <ul>
-                {unmappedDetails.map((detail) => (
-                    <li key={detail.id}>
-                        {detail.name} - {detail.payer_number}
-                        <button onClick={() => handleMap(detail.id)}>Map</button>
-                    </li>
-                ))}
-            </ul>
+            {Array.isArray(unmappedDetails) && unmappedDetails.length > 0 ? (
+                <ul>
+                    {unmappedDetails.map((detail) => (
+                        <li key={detail.id}>
+                            {detail.name} - {detail.payer_number}
+                        </li>
+                    ))}
+                </ul>
+            ) : (
+                <p>No unmapped details available.</p>
+            )}
         </div>
     );
 };

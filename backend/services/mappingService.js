@@ -1,122 +1,61 @@
 const pool = require('../config/db');
-const Fuse = require('fuse.js'); // For fuzzy matching
+const Fuse = require('fuse.js');
 
-// Fuzzy matching options
 const fuseOptions = {
     includeScore: true,
-    threshold: 0.4, // Adjust for sensitivity
-    keys: ['name'] // Key for fuzzy matching
+    threshold: 0.4,
+    keys: ['name']
 };
-
-/**
- * Map payer details from incoming data
- * @param {Array} excelData - Raw data from Excel file
- * @returns {Array} - Mapped payer details
- */
-async function mapPayerDetails(excelData) {
+exports.mapPayerDetails = async (excelData) => {
     try {
+        console.log('Received Excel Data:', excelData);
+
         const results = [];
-        const existingPayers = await getAllPayers();
-        const fuse = new Fuse(existingPayers, fuseOptions); // Initialize Fuse.js
+        const existingPayers = await pool.query('SELECT * FROM payers');
+        console.log('Existing Payers:', existingPayers.rows);
+
+        const fuse = new Fuse(existingPayers.rows, {
+            includeScore: true,
+            threshold: 0.4,
+            keys: ['name']
+        });
 
         for (const detail of excelData) {
-            if (!detail.name || !detail.payer_number) continue;
+            console.log('Processing Detail:', detail);
 
-            const { name, payer_number, payer_group_id, ein } = detail;
-            const normalizedName = name.toUpperCase().trim();
+            let payer = await pool.query(
+                'SELECT * FROM payers WHERE payer_number = $1',
+                [detail.payer_number]
+            );
 
-            let payer = await findPayerByNumber(payer_number);
+            if (payer.rows.length === 0) {
+                const search = fuse.search(detail.name);
+                console.log('Fuzzy Search Results:', search);
 
-            if (!payer) {
-                const searchResults = fuse.search(normalizedName);
-                if (searchResults.length > 0 && searchResults[0].score < 0.4) {
-                    payer = searchResults[0].item;
+                if (search.length > 0 && search[0].score < 0.4) {
+                    payer = search[0].item;
                 }
             }
 
             if (!payer) {
-                payer = await createPayer(normalizedName, payer_number, payer_group_id);
+                payer = await pool.query(
+                    'INSERT INTO payers (name, payer_number, payer_group_id) VALUES ($1, $2, $3) RETURNING *',
+                    [detail.name, detail.payer_number, detail.payer_group_id]
+                );
+                console.log('Created New Payer:', payer.rows[0]);
             }
 
-            await linkPayerDetail(payer.id, payer_number, detail.name, ein);
+            await pool.query(
+                'INSERT INTO payer_details (payer_id, payer_name, payer_number, ein) VALUES ($1, $2, $3, $4)',
+                [payer.id, detail.name, detail.payer_number, detail.ein]
+            );
+
             results.push({ payer, detail });
         }
 
         return results;
     } catch (error) {
-        console.error('Error mapping payers:', error);
-        throw error;
+        console.error('Error in mapPayerDetails:', error.message);
+        throw error; // Rethrow the error to be caught in the controller
     }
-}
-
-
-
-/**
- * Fetch all payers from the database
- * @returns {Array} - Array of payer objects
- */
-async function getAllPayers() {
-    try {
-        const result = await pool.query('SELECT * FROM payers');
-        return result.rows;
-    } catch (error) {
-        console.error('Error fetching payers:', error);
-        throw error;
-    }
-}
-
-/**
- * Find payer by payer number
- * @param {string} payer_number - Payer number to search for
- * @returns {Object|null} - Payer object if found, otherwise null
- */
-async function findPayerByNumber(payer_number) {
-    try {
-        const result = await pool.query('SELECT * FROM payers WHERE payer_number = $1', [payer_number]);
-        return result.rows[0] || null;
-    } catch (error) {
-        console.error('Error finding payer by number:', error);
-        throw error;
-    }
-}
-
-/**
- * Create a new payer
- * @param {string} name - Payer name
- * @param {string} payer_number - Payer number
- * @param {number|null} payer_group_id - Payer group ID (optional)
- * @returns {Object} - Newly created payer object
- */
-async function createPayer(name, payer_number, payer_group_id = null) {
-    try {
-        const result = await pool.query(
-            'INSERT INTO payers (name, payer_number, payer_group_id) VALUES ($1, $2, $3) RETURNING *',
-            [name, payer_number, payer_group_id]
-        );
-        return result.rows[0];
-    } catch (error) {
-        console.error('Error creating payer:', error);
-        throw error;
-    }
-}
-
-/**
- * Link payer details to payer
- * @param {number} payer_id - Payer ID
- * @param {string} payer_number - Payer number
- * @param {string} payer_name - Payer name
- * @param {string|null} ein - Employer Identification Number (optional)
- */
-async function linkPayerDetail(payer_id, payer_number, payer_name, ein = null) {
-    try {
-        await pool.query(
-            'INSERT INTO payer_details (payer_id, payer_number, payer_name, ein) VALUES ($1, $2, $3, $4)',
-            [payer_id, payer_number, payer_name, ein]
-        );
-    } catch (error) {
-        console.error('Error linking payer detail:', error);
-        throw error;
-    }
-}
-
-module.exports = { mapPayerDetails };
+};

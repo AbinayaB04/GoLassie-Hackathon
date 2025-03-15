@@ -4,16 +4,16 @@ import PayerGroupList from './components/payerGroupList';
 import MappingForm from './components/mappingForm';
 import ManualMappingForm from './components/ManualMappingForm';
 import HierarchyView from './components/HierarchyView';
-const App = () => {
-    return (
-        <div>
-            <PayerGroupList />
-            <PayerList />
-            <MappingForm />
-            <ManualMappingForm/>
-            <HierarchyView/>
-        </div>
-    );
-};
+import ErrorBoundary from './components/ErrorBoundary';
+
+const App = () => (
+    <ErrorBoundary>
+        <PayerGroupList />
+        <PayerList />
+        <MappingForm />
+        <ManualMappingForm />
+        <HierarchyView />
+    </ErrorBoundary>
+);
 
 export default App;

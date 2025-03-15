@@ -1,115 +1,91 @@
 const pool = require('../config/db');
 const { mapPayerDetails } = require('../services/mappingService');
-const multer = require('multer'); // For file uploads
-const xlsx = require('xlsx'); // For reading Excel files
-const fs = require('fs'); // For file system access
+const multer = require('multer');
+const xlsx = require('xlsx');
 const path = require('path');
+const fs = require('fs');
 
-// Ensure uploads directory exists
 const uploadsDir = path.join(__dirname, '../uploads');
-if (!fs.existsSync(uploadsDir)) {
-    fs.mkdirSync(uploadsDir);
-}
+if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir);
 
-// Configure multer for file upload
 const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, uploadsDir); // Save uploaded files to the 'uploads' folder
-    },
-    filename: (req, file, cb) => {
-        cb(null, Date.now() + '-' + file.originalname); // Rename the file to avoid conflicts
-    }
+    destination: (req, file, cb) => cb(null, uploadsDir),
+    filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname)
 });
+const upload = multer({ storage });
 
-const upload = multer({ storage,
-    limits: { fileSize: 5 * 1024 * 1024 }, // Limit file size to 5 MB
-    fileFilter: (req, file, cb) => {
-        const filetypes = /xlsx|xls/; // Allow only excel files
-        const mimetype = filetypes.test(file.mimetype);
-        if (mimetype) {
-            return cb(null, true);
-        }
-        cb(new Error('Invalid file type. Only .xlsx and .xls files are allowed.'));
-    } });
+exports.upload = upload;
 
 // Get all payers
 exports.getAllPayers = async (req, res) => {
     try {
         const result = await pool.query('SELECT * FROM payers');
         res.json(result.rows);
-    } catch (error) {
-        console.error('Error fetching payers:', error);
-        res.status(500).json({ error: 'Database query failed' });
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ error: 'Failed to fetch payers' });
     }
 };
 
-// Add a new payer
+// Add payer
 exports.addPayer = async (req, res) => {
-    const { name, payer_group_id, pretty_name } = req.body; // Added pretty_name
+    const { name, payer_group_id, pretty_name } = req.body;
     try {
         const result = await pool.query(
             'INSERT INTO payers (name, payer_group_id, pretty_name) VALUES ($1, $2, $3) RETURNING *',
             [name, payer_group_id, pretty_name]
         );
         res.status(201).json(result.rows[0]);
-    } catch (error) {
-        console.error('Error adding payer:', error);
+    } catch (err) {
+        console.error(err.message);
         res.status(500).json({ error: 'Failed to add payer' });
     }
 };
 
-// Map payer details from JSON data
 exports.mapPayerDetails = async (req, res) => {
     try {
-        const excelData = req.body.data; // Ensure this is an array
+        const excelData = req.body.data;
 
-        // Validate input
-        if (!Array.isArray(excelData)) {
-            return res.status(400).json({ error: 'Expected data to be an array' });
+        // Validate the request body
+        if (!excelData || !Array.isArray(excelData)) {
+            console.error('Invalid data format:', excelData);
+            return res.status(400).json({ error: 'Invalid data format. Expected an array in "data" field.' });
         }
 
-        // Map payer details
-        const mappedData = await mapPayerDetails(excelData);
+        console.log('Received Excel Data:', excelData);
 
-        // Return results
+        // Perform mapping logic (assumes mappingService.js is implemented correctly)
+        const mappedData = await mapPayerDetails(excelData);
         res.status(200).json(mappedData);
     } catch (error) {
-        console.error('Error in controller:', error);
-        res.status(500).json({ error: 'Internal Server Error' });
+        console.error('Error in mapPayerDetails:', error.message);
+        res.status(500).json({ error: 'Failed to map details' });
     }
 };
 
-// Upload Excel file and map payer details
+
 exports.uploadPayerDetails = async (req, res) => {
-    console.log('Received file:', req.file); // Log received file info
-    console.log('Received body:', req.body); // Log the entire request body
-
-    if (!req.file) {
-        return res.status(400).json({ error: 'No file uploaded' });
-    }
-
     try {
+        if (!req.file) {
+            return res.status(400).json({ error: 'No file uploaded or invalid field name. Use "file" as the field name.' });
+        }
+
+        console.log('Uploaded File:', req.file);
+
         // Read the uploaded Excel file
         const workbook = xlsx.readFile(req.file.path);
-        const sheetName = workbook.SheetNames[0]; // Get the first sheet
-        const excelData = xlsx.utils.sheet_to_json(workbook.Sheets[sheetName]); // Convert sheet to JSON
+        const sheetName = workbook.SheetNames[0];
+        const excelData = xlsx.utils.sheet_to_json(workbook.Sheets[sheetName]);
 
-        console.log('Excel Data Extracted:', excelData); // Log extracted data
+        console.log('Excel Data:', excelData);
 
-        // Handle additional fields if needed
-        const payerNumber = req.body.payer_number;
-        const payerGroupId = req.body.payer_group_id;
-
-        console.log('Payer Number:', payerNumber);
-        console.log('Payer Group ID:', payerGroupId);
-
-        // Continue processing...
-        res.status(200).json({ message: 'File uploaded successfully', data: excelData });
-    } catch (error) {
-        console.error('Error processing file:', error);
-        res.status(500).json({ error: 'Internal Server Error' });
+        // Process the Excel data
+        const mappedData = await mapPayerDetails(excelData);
+        res.status(200).json({ message: 'File processed successfully', data: mappedData });
+    } catch (err) {
+        console.error('Error processing file:', err.message);
+        res.status(500).json({ error: 'Failed to process file' });
     }
 };
 
-// Export the upload middleware for use in routes
-exports.upload = upload;
+

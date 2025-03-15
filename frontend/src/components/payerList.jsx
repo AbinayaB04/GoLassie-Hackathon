@@ -6,9 +6,12 @@ const PayerList = () => {
     const [newPayer, setNewPayer] = useState({ name: '', payer_group_id: '' });
 
     useEffect(() => {
-        const fetchPayers = async () => {
+        const fetchPayers = async () => {    try {
             const response = await axios.get('http://localhost:5000/api/payers');
             setPayers(response.data);
+        } catch (error) {
+            console.error('Failed to fetch payers:', error);
+        }
         };
         fetchPayers();
     }, []);
