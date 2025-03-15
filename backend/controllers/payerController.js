@@ -59,21 +59,40 @@ exports.addPayer = async (req, res) => {
         res.status(500).json({ error: 'Failed to add payer' });
     }
 };
-
 exports.mapPayerDetails = async (details) => {
     try {
+        // Ensure details is an array
+        if (!Array.isArray(details)) {
+            throw new Error('Expected details to be an array, but received: ' + typeof details);
+        }
+
         const results = [];
         for (const detail of details) {
-            const existingPayer = await pool.query('SELECT * FROM payers WHERE payer_number = $1', [detail['Payer ID']]);
+            const existingPayer = await pool.query(
+                'SELECT * FROM payer_details WHERE payer_number = $1',
+                [detail['Payer ID']]
+            );
 
             if (existingPayer.rows.length > 0) {
-                results.push({ status: 'Mapped', detail, payer: existingPayer.rows[0] });
+                results.push({
+                    status: 'Mapped',
+                    detail,
+                    payer: existingPayer.rows[0],
+                });
             } else {
                 const newPayer = await pool.query(
-                    'INSERT INTO payers (name, payer_number) VALUES ($1, $2) RETURNING *',
-                    [detail['Payer Identification Information'], detail['Payer ID']]
+                    'INSERT INTO payer_details (payer_name, payer_number, ein) VALUES ($1, $2, $3) RETURNING *',
+                    [
+                        detail['Payer Identification Information'], // Maps to payer_name
+                        detail['Payer ID'], // Maps to payer_number
+                        null, // Placeholder for ein (if not in your details)
+                    ]
                 );
-                results.push({ status: 'Inserted', detail, payer: newPayer.rows[0] });
+                results.push({
+                    status: 'Inserted',
+                    detail,
+                    payer: newPayer.rows[0],
+                });
             }
         }
         return results;
@@ -82,16 +101,15 @@ exports.mapPayerDetails = async (details) => {
     }
 };
 
-
 exports.uploadPayerDetails = async (req, res) => {
     try {
-        // Step 1: Ensure a file is uploaded
+        // Ensure a file is uploaded
         console.log('Request File:', req.file);
         if (!req.file) {
             return res.status(400).json({ error: 'No file uploaded or invalid field name. Use "file" as the field name.' });
         }
 
-        // Step 2: Extract data from the Excel file
+        // Extract data from the Excel file
         const workbook = xlsx.readFile(req.file.path);
         const sheetName = workbook.SheetNames[0];
         const excelData = xlsx.utils.sheet_to_json(workbook.Sheets[sheetName]);
@@ -102,49 +120,24 @@ exports.uploadPayerDetails = async (req, res) => {
             return res.status(400).json({ error: 'Uploaded file is empty or has no valid data.' });
         }
 
-        // Step 3: Map Excel data with the database (payer_detail table)
-        const mappedPayers = [];
-        for (const record of excelData) {
-            // Example: Extract ID from the file record
-            const payerID = record['Payer ID']; // Adjust field name based on your Excel file
-            const payerName = record['Payer Identification Information']; // Adjust field name accordingly
+        // Format and map Excel data
+        const details = excelData.map(record => ({
+            'Payer ID': record['Payer ID'],
+            'Payer Identification Information': record['Payer Identification Information']
+        }));
 
-            // Log what is being processed
-            console.log('Processing Record:', { payerID, payerName });
+        console.log('Details to map:', details);
 
-            // Query the `payer_detail` table for matching payer
-            const existingDetail = await pool.query(
-                'SELECT * FROM payer_detail WHERE payer_id = $1',
-                [payerID]
-            );
+        // Call mapPayerDetails with validated data
+        const mappedPayers = await mapPayerDetails(details);
 
-            if (existingDetail.rows.length > 0) {
-                // If a match is found, add it to the mapped payers
-                mappedPayers.push({
-                    status: 'Mapped',
-                    fileRecord: record,
-                    dbRecord: existingDetail.rows[0], // Matching database row
-                });
-            } else {
-                // If no match is found, log and continue
-                console.log(`No match found for Payer ID: ${payerID}`);
-                mappedPayers.push({
-                    status: 'Unmapped',
-                    fileRecord: record,
-                });
-            }
-        }
-
-        // Step 4: Return the mapped payers as the response
+        // Return the mapped payers as the response
         res.status(200).json({
             message: 'File processed successfully',
             mappedPayers,
         });
-
     } catch (err) {
         console.error('Error during upload and mapping:', err.message);
-        res.status(500).json({ error: 'Failed to process file' });
+        res.status(500).json({ error: 'Failed to process file: ' + err.message });
     }
 };
-
-
