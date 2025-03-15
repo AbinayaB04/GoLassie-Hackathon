@@ -1,7 +1,7 @@
 # GoLassie-Hackathon
 
 # Dental Insurance Payer Processing System
-This project implements a robust system to process, deduplicate, and normalize payer information in the dental insurance industry. Designed to handle variations in payer data across multiple sources, the system features a scalable architecture for file uploads, fuzzy matching, data mapping, and standardization.
+Implements a robust system to process, deduplicate, and normalize payer information in the dental insurance industry. Designed to handle variations in payer data across multiple sources, the system features a scalable architecture for file uploads, fuzzy matching, data mapping, and standardization.
 
 # Features
 ### Payer Data Mapping:
